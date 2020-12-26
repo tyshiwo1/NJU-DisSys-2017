@@ -49,7 +49,9 @@ type Raft struct {
 	// Your data here.
 	// Look at the paper's Figure 2 for a description of what
 	// state a Raft server must maintain.
-
+	
+	
+	
 }
 
 // return currentTerm and whether this server
