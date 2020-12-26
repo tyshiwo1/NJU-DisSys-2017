@@ -55,8 +55,8 @@ type Raft struct {
 	lastApplied int
 	
 	// volatile state on leaders
-	nextIndex []byte
-	matchIndex []byte
+	nextIndex []int
+	matchIndex []int
 }
 
 // return currentTerm and whether this server
