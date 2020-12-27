@@ -200,7 +200,16 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.me = me
 
 	// Your initialization code here.
-
+	rf.currentTerm = 0
+	rf.votedFor = -1
+	rf.log = 
+	rf.commitIndex = -1
+	rf.lastApplied = -1
+	nextIndex []int
+	matchIndex []int
+	
+	
+	
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 
