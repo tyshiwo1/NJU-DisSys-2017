@@ -202,11 +202,11 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// Your initialization code here.
 	rf.currentTerm = 0
 	rf.votedFor = -1
-	rf.log = 
+	rf.log = make([]byte, len(peers))
 	rf.commitIndex = -1
 	rf.lastApplied = -1
-	nextIndex []int
-	matchIndex []int
+	rf.nextIndex = make([]int, len(peers))
+	rf.matchIndex = make([]int, len(peers))
 	
 	
 	
