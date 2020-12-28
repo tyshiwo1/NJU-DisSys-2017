@@ -32,6 +32,7 @@ const (
 
 type logentry struct{
 	data int
+	term int
 	Command     interface{}
 }
 
@@ -72,6 +73,8 @@ type Raft struct {
 	// volatile state on leaders
 	nextIndex []int
 	matchIndex []int
+	
+	state int
 }
 
 func (rf *Raft) AppendEntries(
@@ -279,17 +282,19 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// Your initialization code here.
 	rf.currentTerm = 0
 	rf.votedFor = -1
-	//rf.log = make([]byte, len(peers))
+	rf.log = append(rf.log, logentry{term: 0})
 	rf.commitIndex = -1
 	rf.lastApplied = -1
 	rf.nextIndex = make([]int, len(peers))
 	rf.matchIndex = make([]int, len(peers))
-	
+	rf.state = FOLLOWER
 	
 	
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
-
+	
+	
+	rf.persist()
 
 	return rf
 }
