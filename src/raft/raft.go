@@ -31,6 +31,19 @@ const (
 	CANDIDATE = 3
 )
 
+func max(x, y int) int {
+    if x > y {
+        return x
+    }
+    return y
+}
+
+func min(x, y int) int {
+    if x < y {
+        return x
+    }
+    return y
+}
 
 type logentry struct{
 	data int
@@ -634,7 +647,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.matchIndex = make([]int, len(peers))
 	rf.grantvoteCh = make(chan bool, 100)
 	rf.winelectCh = make(chan bool, 100)
-	rf.heartbeatCh = make(chan bool, 100
+	rf.heartbeatCh = make(chan bool, 100)
 	rf.state = FOLLOWER
 	rf.applyCh = applyCh
 	
