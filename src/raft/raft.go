@@ -396,6 +396,104 @@ func (rf *Raft) log_pad() {
 }
 
 
+type SnapshotArgs struct {
+	term int
+	leaderId int
+	last_id int
+	last_term  int
+	data []byte
+}
+
+type SnapshotReply struct {
+	term int
+}
+
+func (rf *Raft) Snapshotting(args *SnapshotArgs, reply *SnapshotReply) {
+	rf.mu.Lock()
+	if args.term < rf.currentTerm {
+		reply.term = rf.currentTerm
+		return
+	}else if args.term > rf.currentTerm {
+		rf.state = FOLLOWER
+		rf.currentTerm = args.term
+		rf.votedFor = -1
+		rf.persist()
+	}
+	
+	rf.heartbeatCh <- true
+	reply.term = rf.currentTerm
+	if args.last_id > rf.commitIndex {
+		rf.log_update(args.last_id, args.last_term)
+		rf.lastApplied = args.last_id
+		rf.commitIndex = args.last_id
+		
+		rf.persister.SaveRaftState(rf.rf_encode()) //
+		rf.persister.SaveSnapshot(args.data)
+
+		msg := ApplyMsg{Snapshot: args.Data, UseSnapshot: true}
+		rf.chanApply <- msg
+	}
+	
+	defer rf.mu.Unlock()
+}
+
+func (rf *Raft) Snapshot_send(args *SnapshotArgs, reply *SnapshotReply) bool {
+	ok := rf.peers[server].Call("Raft.Snapshotting", args, reply)
+	rf.mu.Lock()
+	if !ok || rf.state != LEADER || args.term != rf.currentTerm {
+		return ok
+	}
+	if reply.term > rf.currentTerm {
+		// become follower and update current term
+		rf.currentTerm = reply.term
+		rf.state = FOLLOWER
+		rf.votedFor = -1
+		rf.persist()
+		return ok
+	}
+	rf.matchIndex[server] = args.last_id
+	rf.nextIndex[server] = args.last_id + 1
+	
+	defer rf.mu.Unlock()
+	return ok
+}
+
+
+func (rf *Raft) Heartbeat_broadcast() {
+	rf.mu.Lock()
+	log_begin_id := rf.log[0].Index
+	snapshot := rf.persister.ReadSnapshot()
+	for server := range rf.peers {
+		if server == rf.me || rf.state != LEADER {
+			continue
+		}
+		if rf.nextIndex[server] <= log_begin_id{
+			args := &SnapshotArgs{}
+			args.term = rf.currentTerm
+			args.leaderId = rf.me
+			args.last_id = rf.log[0].index
+			args.last_term = rf.log[0].term
+			args.data = snapshot
+			go rf.Snapshot_send(server, args, &InstallSnapshotReply{})
+		}else{
+			args := &AppendEntriesArgs{}
+			args.term = rf.currentTerm
+			args.leaderId = rf.me
+			args.prevLogIndex = rf.nextIndex[server] - 1
+			if args.prevLogIndex >= log_begin_id {
+				args.prevLogTerm = rf.log[args.prevLogIndex - log_begin_id].term
+			}
+			if rf.nextIndex[server] <= rf.log[len(rf.log)-1].index {
+				args.entries = rf.log[rf.nextIndex[server] - log_begin_id:]
+			}
+			args.leaderCommit = rf.commitIndex
+			go rf.sendAppendEntries(server, args, &AppendEntriesReply{})
+		}
+	}
+	
+	defer rf.mu.Unlock()
+	
+}
 //
 // the service using Raft (e.g. a k/v server) wants to start
 // agreement on the next command to be appended to Raft's log. if this
