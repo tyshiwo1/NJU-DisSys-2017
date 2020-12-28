@@ -85,19 +85,45 @@ type Raft struct {
 	heartbeatCh chan bool
 }
 
-func (rf *Raft) AppendEntries(
-	leaderId int,
-	term int,
-	prevLogIndex int,
-	entries []logentry,
+type AppendEntriesArgs struct {
+	leaderId int
+	term int
+	prevLogIndex int
+	prevLogTerm  int
+	entries []logentry
 	leaderCommit int
-)(int, bool){
-	var current_term int
-	var success bool
-	
-	return current_term, success
-
 }
+
+type AppendEntriesReply struct {
+	term int
+	success bool
+	nextTryIndex int
+}
+
+func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+	rf.mu.Lock()
+	reply.success = false
+	if args.term < rf.currentTerm {
+		reply.Term = rf.currentTerm
+		reply.nextTryIndex = rf.log[len(rf.log)-1].index + 1
+		return
+	}else if args.term > rf.currentTerm {
+		rf.state = FOLLOWER
+		rf.currentTerm = args.term
+		rf.votedFor = -1
+	}
+	
+	rf.heartbeatCh <- true
+	reply.term = rf.currentTerm
+	if args.prevLogIndex > rf.log[len(rf.log)-1].index {
+		reply.nextTryIndex = rf.log[len(rf.log)-1].index + 1
+		return
+	}
+	
+	defer rf.mu.Unlock()
+	defer rf.persist()
+}
+
 
 
 // return currentTerm and whether this server
@@ -221,7 +247,7 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 		if (rf.votedFor == -1 || rf.votedFor == args.candidateId) && (args.lastLogTerm > rf.log[len(rf.log)-1].term || (args.lastLogTerm == rf.log[len(rf.log)-1].term && args.lastLogTerm >= rf.log[len(rf.log)-1].index)){
 			rf.votedFor = args.candidateId
 			reply.grantvoteCh = true
-			rf.chanGrantVote <- true
+			rf.grantvoteCh <- true
 		}
 	}
 	defer rf.mu.Unlock()
@@ -244,10 +270,55 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 // that the caller passes the address of the reply struct with &, not
 // the struct itself.
 //
-func (rf *Raft) sendRequestVote(server int, args RequestVoteArgs, reply *RequestVoteReply) bool {
+func (rf *Raft) RequestVote_send(server int, args RequestVoteArgs, reply *RequestVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+	rf.mu.Lock()
+	if ok{
+		if rf.state != CANDIDATE || rf.currentTerm != args.term{
+			return ok
+		}
+		if rf.currentTerm < reply.term {
+			rf.state = FOLLOWER
+			rf.currentTerm = reply.term
+			rf.votedFor = -1
+			return ok
+		}
+		if reply.voteGranted {
+			rf.votenum += 1
+			if rf.votenum >= len(rf.peers) / 2{
+				rf.state = LEADER
+				rf.persist()
+				rf.matchIndex = make([]int, len(rf.peers))
+				rf.nextIndex = make([]int, len(rf.peers))
+				nextIndex := rf.log[len(rf.log)-1].index + 1
+				for i := range rf.nextIndex {
+					rf.nextIndex[i] = nextIndex
+				}
+				rf.winelectCh <- true
+			}
+		}
+	}
+	defer rf.mu.Unlock()
+	defer rf.persist()
 	return ok
 }
+
+func (rf *Raft) RequestVote_broadcast() {
+	rf.mu.Lock()
+	args := &RequestVoteArgs{}
+	args.term = rf.currentTerm
+	args.candidateId = rf.me
+	args.lastLogIndex = rf.log[len(rf.log)-1].index
+	args.lastLogTerm = rf.log[len(rf.log)-1].term
+	rf.mu.Unlock()
+
+	for server := range rf.peers {
+		if server != rf.me && rf.state == STATE_CANDIDATE {
+			go rf.RequestVote_send(server, args, &RequestVoteReply{})
+		}
+	}
+}
+
 
 
 //
