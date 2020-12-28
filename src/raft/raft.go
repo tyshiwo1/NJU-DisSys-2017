@@ -487,7 +487,7 @@ func (rf *Raft) Heartbeat_broadcast() {
 			args.last_id = rf.log[0].index
 			args.last_term = rf.log[0].term
 			args.data = snapshot
-			go rf.Snapshot_send(server, args, &InstallSnapshotReply{})
+			go rf.Snapshot_send(server, args, &SnapshotReply{})
 		}else{
 			args := &AppendEntriesArgs{}
 			args.term = rf.currentTerm
@@ -500,7 +500,7 @@ func (rf *Raft) Heartbeat_broadcast() {
 				args.entries = rf.log[rf.nextIndex[server] - log_begin_id:]
 			}
 			args.leaderCommit = rf.commitIndex
-			go rf.sendAppendEntries(server, args, &AppendEntriesReply{})
+			go rf.AppendEntries_send(server, args, &AppendEntriesReply{})
 		}
 	}
 	
@@ -530,7 +530,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	if isLeader {
 		term = rf.currentTerm
 		index = rf.log[len(rf.log)-1].index + 1
-		new_log = logentry{index: index, term: term, Command: command}
+		new_log := logentry{index: index, term: term, Command: command}
 		rf.log = append(rf.log, new_log)
 		rf.persist()
 	}
