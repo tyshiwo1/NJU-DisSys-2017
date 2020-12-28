@@ -345,7 +345,7 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 // that the caller passes the address of the reply struct with &, not
 // the struct itself.
 //
-func (rf *Raft) RequestVote_send(server int, args RequestVoteArgs, reply *RequestVoteReply) bool {
+func (rf *Raft) RequestVote_send(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
 	rf.mu.Lock()
 	if ok{
