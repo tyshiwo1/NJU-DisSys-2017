@@ -120,6 +120,27 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		return
 	}
 	
+	log_begin_id := rf.log[0].index
+	if args.prevLogIndex >= log_begin_id && args.prevLogTerm != rf.log[args.prevLogIndex - log_begin_id].term {
+		term := rf.log[args.prevLogIndex - log_begin_id].term
+		for i := args.prevLogIndex - 1; i >= log_begin_id; i-- {
+			if rf.log[i - log_begin_id].term != term {
+				reply.nextTryIndex = i + 1
+				break
+			}
+		}
+	} else if args.prevLogIndex >= log_begin_id - 1{
+		rf.log = rf.log[:args.prevLogIndex - log_begin_id + 1]
+		rf.log = append(rf.log, args.entries...)
+		reply.success = true
+		reply.nextTryIndex = args.prevLogIndex + len(args.entries)
+		if rf.commitIndex < args.LeaderCommit {
+			// update commitIndex and apply log
+			rf.commitIndex = min(args.leaderCommit, rf.log[len(rf.log)-1].index)
+			go rf.applyLog()
+		}
+	}
+	
 	defer rf.mu.Unlock()
 	defer rf.persist()
 }
