@@ -315,6 +315,12 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		
 		reply.term = rf.currentTerm
 		reply.voteGranted = false
+		
+		if (rf.votedFor == -1 || rf.votedFor == args.candidateId) && (args.lastLogTerm > rf.log[len(rf.log)-1].term || (args.lastLogTerm == rf.log[len(rf.log)-1].term && args.lastLogTerm >= rf.log[len(rf.log)-1].index)){
+			rf.votedFor = args.candidateId
+			reply.voteGranted = true
+			rf.grantvoteCh <- true
+		}
 	}else{
 		reply.term = rf.currentTerm
 		reply.voteGranted = false
