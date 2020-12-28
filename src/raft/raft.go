@@ -119,7 +119,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	rf.mu.Lock()
 	reply.success = false
 	if args.term < rf.currentTerm {
-		reply.Term = rf.currentTerm
+		reply.term = rf.currentTerm
 		reply.nextTryIndex = rf.log[len(rf.log)-1].index + 1
 		return
 	}else if args.term > rf.currentTerm {
@@ -149,7 +149,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		rf.log = append(rf.log, args.entries...)
 		reply.success = true
 		reply.nextTryIndex = args.prevLogIndex + len(args.entries)
-		if rf.commitIndex < args.LeaderCommit {
+		if rf.commitIndex < args.leaderCommit {
 			// update commitIndex and apply log
 			rf.commitIndex = min(args.leaderCommit, rf.log[len(rf.log)-1].index)
 			go rf.log_pad()
@@ -387,7 +387,7 @@ func (rf *Raft) RequestVote_broadcast() {
 	args.lastLogTerm = rf.log[len(rf.log)-1].term
 	rf.mu.Unlock()
 	for server := range rf.peers {
-		if server != rf.me && rf.state == STATE_CANDIDATE {
+		if server != rf.me && rf.state == CANDIDATE {
 			go rf.RequestVote_send(server, args, &RequestVoteReply{})
 		}
 	}
@@ -444,7 +444,7 @@ func (rf *Raft) Snapshotting(args *SnapshotArgs, reply *SnapshotReply) {
 		rf.persister.SaveSnapshot(args.data)
 
 		msg := ApplyMsg{Snapshot: args.Data, UseSnapshot: true}
-		rf.chanApply <- msg
+		rf.applyCh <- msg
 	}
 	
 	defer rf.mu.Unlock()
@@ -474,7 +474,7 @@ func (rf *Raft) Snapshot_send(args *SnapshotArgs, reply *SnapshotReply) bool {
 
 func (rf *Raft) Heartbeat_broadcast() {
 	rf.mu.Lock()
-	log_begin_id := rf.log[0].Index
+	log_begin_id := rf.log[0].index
 	snapshot := rf.persister.ReadSnapshot()
 	for server := range rf.peers {
 		if server == rf.me || rf.state != LEADER {
