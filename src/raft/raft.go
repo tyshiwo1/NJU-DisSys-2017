@@ -75,6 +75,7 @@ type Raft struct {
 	matchIndex []int
 	
 	state int
+	applyCh chan ApplyMsg
 }
 
 func (rf *Raft) AppendEntries(
@@ -288,7 +289,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.nextIndex = make([]int, len(peers))
 	rf.matchIndex = make([]int, len(peers))
 	rf.state = FOLLOWER
-	
+	rf.applyCh = applyCh
 	
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
