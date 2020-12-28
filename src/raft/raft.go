@@ -326,6 +326,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 		}
 	}
 	defer rf.mu.Unlock()
+	defer rf.persist()
 }
 
 //
