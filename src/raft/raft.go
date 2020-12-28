@@ -23,7 +23,10 @@ import "labrpc"
 // import "bytes"
 // import "encoding/gob"
 
-
+type logentry struct{
+	data int
+	
+}
 
 //
 // as each Raft peer becomes aware that successive log entries are
@@ -53,7 +56,7 @@ type Raft struct {
 	// persistent state on all servers
 	currentTerm int
 	votedFor int
-	log []byte
+	log []logentry
 	
 	// volatile state on all servers
 	commitIndex int
@@ -63,6 +66,11 @@ type Raft struct {
 	nextIndex []int
 	matchIndex []int
 }
+
+type AppendEntries struct{
+	
+}
+
 
 // return currentTerm and whether this server
 // believes it is the leader.
@@ -202,7 +210,7 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// Your initialization code here.
 	rf.currentTerm = 0
 	rf.votedFor = -1
-	rf.log = make([]byte, len(peers))
+	//rf.log = make([]byte, len(peers))
 	rf.commitIndex = -1
 	rf.lastApplied = -1
 	rf.nextIndex = make([]int, len(peers))
