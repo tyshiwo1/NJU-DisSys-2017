@@ -92,14 +92,13 @@ func (rf *Raft) AppendEntries(
 // return currentTerm and whether this server
 // believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
-
 	var term int
 	var isleader bool
 	// Your code here.
-	
+	rf.mu.Lock()
 	term = rf.currentTerm
 	isleader = (rf.state == LEADER)
-	
+	defer rf.mu.Unlock()
 	return term, isleader
 }
 
@@ -159,14 +158,25 @@ type RequestVoteReply struct {
 //
 func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here.
-	
+	rf.mu.Lock()
 	if args.term < rf.currentTerm {
 		reply.term = rf.currentTerm
 		reply.voteGranted = false
-	}
-	else{
+	}else if args.term > rf.currentTerm {
+		rf.currentTerm = args.term
+		rf.state = FOLLOWER
 		
+		
+		
+	}else{
+		if rf.votedFor >= 0 && rf.votedFor != args.candidateId {
+			reply.term = rf.currentTerm
+			reply.voteGranted = false
+		}else{
+			
+		}
 	}
+	defer rf.mu.Unlock()
 }
 
 //
@@ -222,6 +232,30 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 //
 func (rf *Raft) Kill() {
 	// Your code here, if desired.
+}
+
+
+func (rf *Raft) state_change(term int, state int) {
+	if rf.state == state{
+		return
+	}
+	rf.state = state
+	if state == LEADER{
+		rf.nextIndex = make([]int, len(rf.peers))
+		rf.matchIndex = make([]int, len(rf.peers))
+		for i:=0; i<len(rf.peers); i++ {
+			rf.nextIndex[i] = len(rf.log) + 1
+			rf.matchIndex[i] = 0
+		}
+	}
+	if state == FOLLOWER{
+		rf.currentTerm = term
+	}
+	if state == CANDIDATE{
+		rf.currentTerm += 1
+		rf.votedFor = rf.me
+		
+	}
 }
 
 //
