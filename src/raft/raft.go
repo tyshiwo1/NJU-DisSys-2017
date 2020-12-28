@@ -147,6 +147,45 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	defer rf.persist()
 }
 
+func (rf *Raft) AppendEntries_send(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
+	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
+	rf.mu.Lock()
+	if !ok || rf.state != LEADER || args.term != rf.currentTerm {
+		return ok
+	}
+	if reply.term > rf.currentTerm {
+		rf.currentTerm = reply.term
+		rf.state = FOLLOWER
+		rf.votedFor = -1
+		rf.persist()
+		return ok
+	}
+	if reply.success {
+		if len(args.entries) >= 1 {
+			rf.nextIndex[server] = args.entries[len(args.entries)-1].index + 1
+			rf.matchIndex[server] = rf.nextIndex[server] - 1
+		}
+	} else {
+		rf.nextIndex[server] = min(rf.log[len(rf.log)-1].index, reply.nextTryIndex)
+	}
+	log_begin_id := rf.log[0].index
+	for i := rf.log[len(rf.log)-1].index; i > rf.commitIndex && rf.log[i - log_begin_id].term == rf.currentTerm; i-- {
+		count := 1
+		for ii := range rf.peers {
+			if ii != rf.me && rf.matchIndex[ii] >= i {
+				count += 1
+			}
+		}
+		
+		if count > len(rf.peers) / 2 {
+			rf.commitIndex = i
+			go rf.log_pad()
+			break
+		}
+	}
+	defer rf.mu.Unlock()
+	return ok
+}
 
 
 // return currentTerm and whether this server
@@ -176,7 +215,7 @@ func (rf *Raft) persist() {
 	// e.Encode(rf.yyy)
 	// data := w.Bytes()
 	// rf.persister.SaveRaftState(data)
-	data := rf.persist()
+	data := rf.rf_encode()
 	rf.persister.SaveRaftState(data)
 }
 
@@ -374,8 +413,18 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	index := -1
 	term := -1
 	isLeader := true
-
-
+	rf.mu.Lock()
+	
+	isLeader = (rf.state == LEADER)
+	if isLeader {
+		term = rf.currentTerm
+		index = rf.log[len(rf.log)-1].index + 1
+		new_log = logentry{index: index, term: term, Command: command}
+		rf.log = append(rf.log, new_log)
+		rf.persist()
+	}
+	
+	defer rf.mu.Unlock()
 	return index, term, isLeader
 }
 
@@ -406,13 +455,10 @@ func (rf *Raft) state_change(term int, state int) {
 	if state == FOLLOWER{
 		rf.currentTerm = term
 		rf.votedFor = -1
-		rf.heartbeat.stop()
-		rf.election.start()
 	}
 	if state == CANDIDATE{
 		rf.currentTerm += 1
 		rf.votedFor = rf.me
-		
 	}
 }
 
@@ -440,6 +486,33 @@ func (rf *Raft) log_update(last_id int, last_term int) {
 // Make() must return quickly, so it should start goroutines
 // for any long-running work.
 //
+func (rf *Raft) run() {
+	for {
+		if rf.state == LEADER{
+			
+		}else if rf.state == FOLLOWER{
+			select {
+			case <- rf.grantvoteCh:
+			case <- rf.heartbeatCh:
+			case <- time.After(time.Millisecond * time.Duration(rand.Intn(300)+200)):
+				rf.state = CANDIDATE
+				rf.persist()
+			}
+		}else if rf.state == CANDIDATE{
+			rf.mu.Lock()
+			rf.currentTerm += 1
+			rf.votedFor = rf.me
+			rf.votenum = 1
+			rf.persist()
+			rf.mu.Unlock()
+			
+			
+			
+		}
+		
+	}
+}
+
 func Make(peers []*labrpc.ClientEnd, me int,
 	persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
