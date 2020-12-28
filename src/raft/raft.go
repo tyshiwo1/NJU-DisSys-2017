@@ -641,8 +641,8 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.currentTerm = 0
 	rf.votedFor = -1
 	rf.log = append(rf.log, logentry{term: 0})
-	rf.commitIndex = -1
-	rf.lastApplied = -1
+	rf.commitIndex = 0 //-1
+	rf.lastApplied = 0 //-1
 	rf.nextIndex = make([]int, len(peers))
 	rf.matchIndex = make([]int, len(peers))
 	rf.grantvoteCh = make(chan bool, 100)
