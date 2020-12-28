@@ -117,6 +117,8 @@ type AppendEntriesReply struct {
 
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	defer rf.persist()
 	reply.success = false
 	if args.term < rf.currentTerm {
 		reply.term = rf.currentTerm
@@ -155,14 +157,12 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			go rf.log_pad()
 		}
 	}
-	
-	defer rf.mu.Unlock()
-	defer rf.persist()
 }
 
 func (rf *Raft) AppendEntries_send(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
 	ok := rf.peers[server].Call("Raft.AppendEntries", args, reply)
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	if !ok || rf.state != LEADER || args.term != rf.currentTerm {
 		return ok
 	}
@@ -196,7 +196,7 @@ func (rf *Raft) AppendEntries_send(server int, args *AppendEntriesArgs, reply *A
 			break
 		}
 	}
-	defer rf.mu.Unlock()
+	
 	return ok
 }
 
@@ -349,6 +349,8 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 func (rf *Raft) RequestVote_send(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
 	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	defer rf.persist()
 	if ok{
 		if rf.state != CANDIDATE || rf.currentTerm != args.term{
 			return ok
@@ -374,8 +376,7 @@ func (rf *Raft) RequestVote_send(server int, args *RequestVoteArgs, reply *Reque
 			}
 		}
 	}
-	defer rf.mu.Unlock()
-	defer rf.persist()
+	
 	return ok
 }
 
@@ -424,6 +425,7 @@ type SnapshotReply struct {
 
 func (rf *Raft) Snapshotting(args *SnapshotArgs, reply *SnapshotReply) {
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	if args.term < rf.currentTerm {
 		reply.term = rf.currentTerm
 		return
@@ -447,13 +449,12 @@ func (rf *Raft) Snapshotting(args *SnapshotArgs, reply *SnapshotReply) {
 		msg := ApplyMsg{Snapshot: args.data, UseSnapshot: true}
 		rf.applyCh <- msg
 	}
-	
-	defer rf.mu.Unlock()
 }
 
 func (rf *Raft) Snapshot_send(server int, args *SnapshotArgs, reply *SnapshotReply) bool {
 	ok := rf.peers[server].Call("Raft.Snapshotting", args, reply)
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	if !ok || rf.state != LEADER || args.term != rf.currentTerm {
 		return ok
 	}
@@ -467,14 +468,13 @@ func (rf *Raft) Snapshot_send(server int, args *SnapshotArgs, reply *SnapshotRep
 	}
 	rf.matchIndex[server] = args.last_id
 	rf.nextIndex[server] = args.last_id + 1
-	
-	defer rf.mu.Unlock()
 	return ok
 }
 
 
 func (rf *Raft) Heartbeat_broadcast() {
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	log_begin_id := rf.log[0].index
 	snapshot := rf.persister.ReadSnapshot()
 	for server := range rf.peers {
@@ -504,9 +504,6 @@ func (rf *Raft) Heartbeat_broadcast() {
 			go rf.AppendEntries_send(server, args, &AppendEntriesReply{})
 		}
 	}
-	
-	defer rf.mu.Unlock()
-	
 }
 //
 // the service using Raft (e.g. a k/v server) wants to start
@@ -526,6 +523,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 	term := -1
 	isLeader := true
 	rf.mu.Lock()
+	defer rf.mu.Unlock()
 	
 	isLeader = (rf.state == LEADER)
 	if isLeader {
@@ -536,7 +534,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		rf.persist()
 	}
 	
-	defer rf.mu.Unlock()
+	
 	return index, term, isLeader
 }
 
