@@ -134,9 +134,6 @@ func (rf *Raft) readPersist(data []byte) {
 	// d.Decode(&rf.yyy)
 }
 
-
-
-
 //
 // example RequestVote RPC arguments structure.
 //
@@ -254,6 +251,9 @@ func (rf *Raft) state_change(term int, state int) {
 	}
 	if state == FOLLOWER{
 		rf.currentTerm = term
+		rf.votedFor = -1
+		rf.heartbeat.stop()
+		rf.election.start()
 	}
 	if state == CANDIDATE{
 		rf.currentTerm += 1
@@ -294,8 +294,11 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 	
+	rf.mu.Lock()
+	
 	
 	rf.persist()
-
+	
+	defer rf.mu.Unlock()
 	return rf
 }
