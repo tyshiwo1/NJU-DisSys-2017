@@ -19,9 +19,11 @@ package raft
 
 import "sync"
 import "labrpc"
-
-// import "bytes"
-// import "encoding/gob"
+import "bytes"
+import "encoding/gob"
+import "labgob"
+import "math/rand"
+import "time"
 
 const (
 	LEADER = 1
@@ -32,8 +34,9 @@ const (
 
 type logentry struct{
 	data int
+	Command interface{}
 	term int
-	Command     interface{}
+	index int
 }
 
 //
@@ -75,7 +78,11 @@ type Raft struct {
 	matchIndex []int
 	
 	state int
+	votenum int
 	applyCh chan ApplyMsg
+	grantvoteCh chan bool
+	winelectCh chan bool
+	heartbeatCh chan bool
 }
 
 func (rf *Raft) AppendEntries(
@@ -120,7 +127,20 @@ func (rf *Raft) persist() {
 	// e.Encode(rf.yyy)
 	// data := w.Bytes()
 	// rf.persister.SaveRaftState(data)
+	data := rf.persist()
+	rf.persister.SaveRaftState(data)
 }
+
+func (rf *Raft) rf_encode() []byte{
+	w := new(bytes.Buffer)
+	e := labgob.NewEncoder(w)
+	e.Encode(rf.currentTerm)
+	e.Encode(rf.votedFor)
+	e.Encode(rf.log)
+	data := w.Bytes()
+	return data
+}
+
 
 //
 // restore previously persisted state.
@@ -132,7 +152,17 @@ func (rf *Raft) readPersist(data []byte) {
 	// d := gob.NewDecoder(r)
 	// d.Decode(&rf.xxx)
 	// d.Decode(&rf.yyy)
+	if data != nil && len(data) >= 1 {
+		r := bytes.NewBuffer(data)
+		d := labgob.NewDecoder(r)
+		d.Decode(&rf.currentTerm)
+		d.Decode(&rf.log)
+		d.Decode(&rf.votedFor)
+	}
+	
 }
+
+
 
 //
 // example RequestVote RPC arguments structure.
