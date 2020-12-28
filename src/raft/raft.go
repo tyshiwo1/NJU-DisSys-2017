@@ -47,6 +47,8 @@ type logentry struct{
 type ApplyMsg struct {
 	Index       int
 	Command     interface{}
+	CommandValid bool
+	CommandIndex int
 	UseSnapshot bool   // ignore for lab2; only used in lab3
 	Snapshot    []byte // ignore for lab2; only used in lab3
 }
@@ -137,7 +139,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		if rf.commitIndex < args.LeaderCommit {
 			// update commitIndex and apply log
 			rf.commitIndex = min(args.leaderCommit, rf.log[len(rf.log)-1].index)
-			go rf.applyLog()
+			go rf.log_pad()
 		}
 	}
 	
@@ -332,7 +334,6 @@ func (rf *Raft) RequestVote_broadcast() {
 	args.lastLogIndex = rf.log[len(rf.log)-1].index
 	args.lastLogTerm = rf.log[len(rf.log)-1].term
 	rf.mu.Unlock()
-
 	for server := range rf.peers {
 		if server != rf.me && rf.state == STATE_CANDIDATE {
 			go rf.RequestVote_send(server, args, &RequestVoteReply{})
@@ -340,6 +341,20 @@ func (rf *Raft) RequestVote_broadcast() {
 	}
 }
 
+
+func (rf *Raft) log_pad() {
+	rf.mu.Lock()
+	log_begin_id := rf.log[0].index
+	for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
+		msg := ApplyMsg{}
+		msg.CommandIndex = i
+		msg.CommandValid = true
+		msg.Command = rf.log[i - log_begin_id].Command
+		rf.applyCh <- msg
+	}
+	rf.lastApplied = rf.commitIndex
+	defer rf.mu.Unlock()
+}
 
 
 //
