@@ -250,7 +250,7 @@ func (rf *Raft) readPersist(data []byte) {
 	
 }
 
-func (rf *Raft) recoverFromSnapshot(snapshot []byte) {
+func (rf *Raft) getSnapshot(snapshot []byte) {
 	if snapshot != nil && len(snapshot) >= 1 {
 		var last_id int 
 		var last_term int
@@ -587,12 +587,13 @@ func (rf *Raft) log_update(last_id int, last_term int) {
 func (rf *Raft) run() {
 	for {
 		if rf.state == LEADER{
-			
+			go rf.Heartbeat_broadcast()
+			time.Sleep(60 * time.Millisecond)
 		}else if rf.state == FOLLOWER{
 			select {
 			case <- rf.grantvoteCh:
 			case <- rf.heartbeatCh:
-			case <- time.After(time.Millisecond * time.Duration(rand.Intn(300)+200)):
+			case <- time.After(time.Duration(rand.Intn(300)+200) * time.Millisecond):
 				rf.state = CANDIDATE
 				rf.persist()
 			}
@@ -603,9 +604,14 @@ func (rf *Raft) run() {
 			rf.votenum = 1
 			rf.persist()
 			rf.mu.Unlock()
+			go rf.RequestVote_broadcast()
 			
-			
-			
+			select {
+			case <-rf.heartbeatCh:
+				rf.state = FOLLOWER
+			case <-rf.winelectCh:
+			case <-time.After(time.Duration(rand.Intn(300)+200) * time.Millisecond):
+			}
 		}
 		
 	}
@@ -626,17 +632,19 @@ func Make(peers []*labrpc.ClientEnd, me int,
 	rf.lastApplied = -1
 	rf.nextIndex = make([]int, len(peers))
 	rf.matchIndex = make([]int, len(peers))
+	rf.grantvoteCh = make(chan bool, 100)
+	rf.winelectCh = make(chan bool, 100)
+	rf.heartbeatCh = make(chan bool, 100
 	rf.state = FOLLOWER
 	rf.applyCh = applyCh
 	
 	// initialize from state persisted before a crash
 	rf.readPersist(persister.ReadRaftState())
 	
-	rf.mu.Lock()
-	
-	
+	rf.getSnapshot(persister.ReadSnapshot())
 	rf.persist()
 	
-	defer rf.mu.Unlock()
+	go rf.run()
+	
 	return rf
 }
