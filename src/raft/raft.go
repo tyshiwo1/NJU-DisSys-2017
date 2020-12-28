@@ -321,7 +321,7 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 		
 		if (rf.votedFor == -1 || rf.votedFor == args.candidateId) && (args.lastLogTerm > rf.log[len(rf.log)-1].term || (args.lastLogTerm == rf.log[len(rf.log)-1].term && args.lastLogTerm >= rf.log[len(rf.log)-1].index)){
 			rf.votedFor = args.candidateId
-			reply.grantvoteCh = true
+			reply.voteGranted = true
 			rf.grantvoteCh <- true
 		}
 	}
@@ -443,14 +443,14 @@ func (rf *Raft) Snapshotting(args *SnapshotArgs, reply *SnapshotReply) {
 		rf.persister.SaveRaftState(rf.rf_encode()) //
 		rf.persister.SaveSnapshot(args.data)
 
-		msg := ApplyMsg{Snapshot: args.Data, UseSnapshot: true}
+		msg := ApplyMsg{Snapshot: args.data, UseSnapshot: true}
 		rf.applyCh <- msg
 	}
 	
 	defer rf.mu.Unlock()
 }
 
-func (rf *Raft) Snapshot_send(args *SnapshotArgs, reply *SnapshotReply) bool {
+func (rf *Raft) Snapshot_send(server int, args *SnapshotArgs, reply *SnapshotReply) bool {
 	ok := rf.peers[server].Call("Raft.Snapshotting", args, reply)
 	rf.mu.Lock()
 	if !ok || rf.state != LEADER || args.term != rf.currentTerm {
