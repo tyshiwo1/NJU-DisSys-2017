@@ -23,9 +23,16 @@ import "labrpc"
 // import "bytes"
 // import "encoding/gob"
 
+const (
+	LEADER = 1
+	FOLLOWER = 2
+	CANDIDATE = 3
+)
+
+
 type logentry struct{
 	data int
-	
+	Command     interface{}
 }
 
 //
@@ -67,8 +74,18 @@ type Raft struct {
 	matchIndex []int
 }
 
-type AppendEntries struct{
+func (rf *Raft) AppendEntries(
+	leaderId int,
+	term int,
+	prevLogIndex int,
+	entries []logentry,
+	leaderCommit int
+)(int, bool){
+	var current_term int
+	var success bool
 	
+	return current_term, success
+
 }
 
 
@@ -79,6 +96,10 @@ func (rf *Raft) GetState() (int, bool) {
 	var term int
 	var isleader bool
 	// Your code here.
+	
+	term = rf.currentTerm
+	isleader = (rf.state == LEADER)
+	
 	return term, isleader
 }
 
@@ -118,6 +139,10 @@ func (rf *Raft) readPersist(data []byte) {
 //
 type RequestVoteArgs struct {
 	// Your data here.
+	term int
+	candidateId int
+	lastLogIndex int
+	lastLogTerm int
 }
 
 //
@@ -125,6 +150,8 @@ type RequestVoteArgs struct {
 //
 type RequestVoteReply struct {
 	// Your data here.
+	term int
+	voteGranted bool 
 }
 
 //
@@ -132,6 +159,14 @@ type RequestVoteReply struct {
 //
 func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 	// Your code here.
+	
+	if args.term < rf.currentTerm {
+		reply.term = rf.currentTerm
+		reply.voteGranted = false
+	}
+	else{
+		
+	}
 }
 
 //
