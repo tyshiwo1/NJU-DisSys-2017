@@ -162,8 +162,6 @@ func (rf *Raft) readPersist(data []byte) {
 	
 }
 
-
-
 func (rf *Raft) recoverFromSnapshot(snapshot []byte) {
 	if snapshot != nil && len(snapshot) >= 1 {
 		var last_id int 
@@ -172,20 +170,13 @@ func (rf *Raft) recoverFromSnapshot(snapshot []byte) {
 		d := labgob.NewDecoder(r)
 		d.Decode(&last_id)
 		d.Decode(&last_term)
-
 		rf.lastApplied = last_id
 		rf.commitIndex = last_id
-		rf.trimLog(last_id, last_term)
-
-		// send snapshot to kv server
+		rf.log_update(last_id, last_term)
 		msg := ApplyMsg{UseSnapshot: true, Snapshot: snapshot}
 		rf.applyCh <- msg
 	}
 }
-
-
-
-
 
 //
 // example RequestVote RPC arguments structure.
@@ -219,15 +210,18 @@ func (rf *Raft) RequestVote(args RequestVoteArgs, reply *RequestVoteReply) {
 	}else if args.term > rf.currentTerm {
 		rf.currentTerm = args.term
 		rf.state = FOLLOWER
+		rf.votedFor = -1
 		
-		
-		
+		reply.term = rf.currentTerm
+		reply.voteGranted = false
 	}else{
-		if rf.votedFor >= 0 && rf.votedFor != args.candidateId {
-			reply.term = rf.currentTerm
-			reply.voteGranted = false
-		}else{
-			
+		reply.term = rf.currentTerm
+		reply.voteGranted = false
+		
+		if (rf.votedFor == -1 || rf.votedFor == args.candidateId) && (args.lastLogTerm > rf.log[len(rf.log)-1].term || (args.lastLogTerm == rf.log[len(rf.log)-1].term && args.lastLogTerm >= rf.log[len(rf.log)-1].index)){
+			rf.votedFor = args.candidateId
+			reply.grantvoteCh = true
+			rf.chanGrantVote <- true
 		}
 	}
 	defer rf.mu.Unlock()
@@ -315,9 +309,9 @@ func (rf *Raft) state_change(term int, state int) {
 	}
 }
 
-func (rf *Raft) trimLog(last_id int, last_term int) {
-	new_log := make([]LogEntry, 0)
-	new_log = append(new_log, LogEntry{index: last_id, term: last_term})
+func (rf *Raft) log_update(last_id int, last_term int) {
+	new_log := make([]logentry, 0)
+	new_log = append(new_log, logentry{index: last_id, term: last_term})
 	for i := len(rf.log) - 1; i >= 0; i-- {
 		if rf.log[i].term != last_term || rf.log[i].index != last_id {
 			continue
