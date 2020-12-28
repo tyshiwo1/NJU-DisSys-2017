@@ -21,7 +21,7 @@ import "sync"
 import "labrpc"
 import "bytes"
 import "encoding/gob"
-import "labgob"
+//import "labgob"
 import "math/rand"
 import "time"
 
@@ -221,7 +221,7 @@ func (rf *Raft) persist() {
 
 func (rf *Raft) rf_encode() []byte{
 	w := new(bytes.Buffer)
-	e := labgob.NewEncoder(w)
+	e := gob.NewEncoder(w)
 	e.Encode(rf.currentTerm)
 	e.Encode(rf.votedFor)
 	e.Encode(rf.log)
@@ -242,7 +242,7 @@ func (rf *Raft) readPersist(data []byte) {
 	// d.Decode(&rf.yyy)
 	if data != nil && len(data) >= 1 {
 		r := bytes.NewBuffer(data)
-		d := labgob.NewDecoder(r)
+		d := gob.NewDecoder(r)
 		d.Decode(&rf.currentTerm)
 		d.Decode(&rf.log)
 		d.Decode(&rf.votedFor)
@@ -255,7 +255,7 @@ func (rf *Raft) getSnapshot(snapshot []byte) {
 		var last_id int 
 		var last_term int
 		r := bytes.NewBuffer(snapshot)
-		d := labgob.NewDecoder(r)
+		d := gob.NewDecoder(r)
 		d.Decode(&last_id)
 		d.Decode(&last_term)
 		rf.lastApplied = last_id
