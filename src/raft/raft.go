@@ -285,9 +285,9 @@ func (rf *Raft) getSnapshot(snapshot []byte) {
 type RequestVoteArgs struct {
 	// Your Data here.
 	Term int
-	candidateId int
-	lastLogIndex int
-	lastLogTerm int
+	CandidateId int
+	LastLogIndex int
+	LastLogTerm int
 }
 
 //
@@ -296,7 +296,7 @@ type RequestVoteArgs struct {
 type RequestVoteReply struct {
 	// Your Data here.
 	Term int
-	voteGranted bool 
+	VoteGranted bool 
 }
 
 //
@@ -307,27 +307,27 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	rf.mu.Lock()
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
-		reply.voteGranted = false
+		reply.VoteGranted = false
 	}else if args.Term > rf.currentTerm {
 		rf.currentTerm = args.Term
 		rf.state = FOLLOWER
 		rf.votedFor = -1
 		
 		reply.Term = rf.currentTerm
-		reply.voteGranted = false
+		reply.VoteGranted = false
 		
-		if (rf.votedFor == -1 || rf.votedFor == args.candidateId) && (args.lastLogTerm > rf.log[len(rf.log)-1].Term || (args.lastLogTerm == rf.log[len(rf.log)-1].Term && args.lastLogTerm >= rf.log[len(rf.log)-1].index)){
-			rf.votedFor = args.candidateId
-			reply.voteGranted = true
+		if (rf.votedFor == -1 || rf.votedFor == args.CandidateId) && (args.LastLogTerm > rf.log[len(rf.log)-1].Term || (args.LastLogTerm == rf.log[len(rf.log)-1].Term && args.LastLogTerm >= rf.log[len(rf.log)-1].index)){
+			rf.votedFor = args.CandidateId
+			reply.VoteGranted = true
 			rf.grantvoteCh <- true
 		}
 	}else{
 		reply.Term = rf.currentTerm
-		reply.voteGranted = false
+		reply.VoteGranted = false
 		
-		if (rf.votedFor == -1 || rf.votedFor == args.candidateId) && (args.lastLogTerm > rf.log[len(rf.log)-1].Term || (args.lastLogTerm == rf.log[len(rf.log)-1].Term && args.lastLogTerm >= rf.log[len(rf.log)-1].index)){
-			rf.votedFor = args.candidateId
-			reply.voteGranted = true
+		if (rf.votedFor == -1 || rf.votedFor == args.CandidateId) && (args.LastLogTerm > rf.log[len(rf.log)-1].Term || (args.LastLogTerm == rf.log[len(rf.log)-1].Term && args.LastLogTerm >= rf.log[len(rf.log)-1].index)){
+			rf.votedFor = args.CandidateId
+			reply.VoteGranted = true
 			rf.grantvoteCh <- true
 		}
 	}
@@ -367,7 +367,7 @@ func (rf *Raft) RequestVote_send(server int, args *RequestVoteArgs, reply *Reque
 			rf.votedFor = -1
 			return ok
 		}
-		if reply.voteGranted {
+		if reply.VoteGranted {
 			rf.votenum += 1
 			if rf.votenum > len(rf.peers) / 2{
 				rf.state = LEADER
@@ -390,9 +390,9 @@ func (rf *Raft) RequestVote_broadcast() {
 	rf.mu.Lock()
 	args := &RequestVoteArgs{}
 	args.Term = rf.currentTerm
-	args.candidateId = rf.me
-	args.lastLogIndex = rf.log[len(rf.log)-1].index
-	args.lastLogTerm = rf.log[len(rf.log)-1].Term
+	args.CandidateId = rf.me
+	args.LastLogIndex = rf.log[len(rf.log)-1].index
+	args.LastLogTerm = rf.log[len(rf.log)-1].Term
 	rf.mu.Unlock()
 	for server := range rf.peers {
 		if server != rf.me && rf.state == CANDIDATE {
