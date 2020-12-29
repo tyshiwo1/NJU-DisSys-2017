@@ -265,15 +265,15 @@ func (rf *Raft) readPersist(Data []byte) {
 
 func (rf *Raft) getSnapshot(snapshot []byte) {
 	if snapshot != nil && len(snapshot) >= 1 {
-		var last_id int 
-		var last_Term int
+		var Last_id int 
+		var Last_Term int
 		r := bytes.NewBuffer(snapshot)
 		d := gob.NewDecoder(r)
-		d.Decode(&last_id)
-		d.Decode(&last_Term)
-		rf.lastApplied = last_id
-		rf.commitIndex = last_id
-		rf.log_update(last_id, last_Term)
+		d.Decode(&Last_id)
+		d.Decode(&Last_Term)
+		rf.lastApplied = Last_id
+		rf.commitIndex = Last_id
+		rf.log_update(Last_id, Last_Term)
 		msg := ApplyMsg{UseSnapshot: true, Snapshot: snapshot}
 		rf.applyCh <- msg
 	}
@@ -369,7 +369,7 @@ func (rf *Raft) RequestVote_send(server int, args *RequestVoteArgs, reply *Reque
 		}
 		if reply.voteGranted {
 			rf.votenum += 1
-			if rf.votenum >= len(rf.peers) / 2{
+			if rf.votenum > len(rf.peers) / 2{
 				rf.state = LEADER
 				rf.persist()
 				rf.matchIndex = make([]int, len(rf.peers))
@@ -420,8 +420,8 @@ func (rf *Raft) log_pad() {
 type SnapshotArgs struct {
 	Term int
 	LeaderId int
-	last_id int
-	last_Term  int
+	Last_id int
+	Last_Term  int
 	Data []byte
 }
 
@@ -444,10 +444,10 @@ func (rf *Raft) Snapshotting(args *SnapshotArgs, reply *SnapshotReply) {
 	
 	rf.heartbeatCh <- true
 	reply.Term = rf.currentTerm
-	if args.last_id > rf.commitIndex {
-		rf.log_update(args.last_id, args.last_Term)
-		rf.lastApplied = args.last_id
-		rf.commitIndex = args.last_id
+	if args.Last_id > rf.commitIndex {
+		rf.log_update(args.Last_id, args.Last_Term)
+		rf.lastApplied = args.Last_id
+		rf.commitIndex = args.Last_id
 		
 		rf.persister.SaveRaftState(rf.rf_encode()) //
 		rf.persister.SaveSnapshot(args.Data)
@@ -472,8 +472,8 @@ func (rf *Raft) Snapshot_send(server int, args *SnapshotArgs, reply *SnapshotRep
 		rf.persist()
 		return ok
 	}
-	rf.matchIndex[server] = args.last_id
-	rf.nextIndex[server] = args.last_id + 1
+	rf.matchIndex[server] = args.Last_id
+	rf.nextIndex[server] = args.Last_id + 1
 	return ok
 }
 
@@ -491,8 +491,8 @@ func (rf *Raft) Heartbeat_broadcast() {
 			args := &SnapshotArgs{}
 			args.Term = rf.currentTerm
 			args.LeaderId = rf.me
-			args.last_id = rf.log[0].index
-			args.last_Term = rf.log[0].Term
+			args.Last_id = rf.log[0].index
+			args.Last_Term = rf.log[0].Term
 			args.Data = snapshot
 			go rf.Snapshot_send(server, args, &SnapshotReply{})
 		}else{
@@ -578,11 +578,11 @@ func (rf *Raft) state_change(Term int, state int) {
 	}
 }
 
-func (rf *Raft) log_update(last_id int, last_Term int) {
+func (rf *Raft) log_update(Last_id int, Last_Term int) {
 	new_log := make([]logentry, 0)
-	new_log = append(new_log, logentry{index: last_id, Term: last_Term})
+	new_log = append(new_log, logentry{index: Last_id, Term: Last_Term})
 	for i := len(rf.log) - 1; i >= 0; i-- {
-		if rf.log[i].Term != last_Term || rf.log[i].index != last_id {
+		if rf.log[i].Term != Last_Term || rf.log[i].index != Last_id {
 			continue
 		}
 		new_log = append(new_log, rf.log[i+1:]...)
