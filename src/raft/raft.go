@@ -186,7 +186,7 @@ func (rf *Raft) AppendEntries_send(server int, args *AppendEntriesArgs, reply *A
 		count := 1
 		for ii := range rf.peers {
 			if ii != rf.me && rf.matchIndex[ii] >= i {
-				count += 1
+				count = count + 1
 			}
 		}
 		
@@ -368,7 +368,7 @@ func (rf *Raft) RequestVote_send(server int, args *RequestVoteArgs, reply *Reque
 			return ok
 		}
 		if reply.VoteGranted {
-			rf.votenum += 1
+			rf.votenum = rf.votenum + 1
 			if rf.votenum > len(rf.peers) / 2{
 				rf.state = LEADER
 				rf.persist()
@@ -573,7 +573,7 @@ func (rf *Raft) state_change(Term int, state int) {
 		rf.votedFor = -1
 	}
 	if state == CANDIDATE{
-		rf.currentTerm += 1
+		rf.currentTerm = rf.currentTerm + 1
 		rf.votedFor = rf.me
 	}
 }
@@ -617,7 +617,7 @@ func (rf *Raft) run() {
 			}
 		}else if rf.state == CANDIDATE{
 			rf.mu.Lock()
-			rf.currentTerm += 1
+			rf.currentTerm = rf.currentTerm + 1
 			rf.votedFor = rf.me
 			rf.votenum = 1
 			rf.persist()
