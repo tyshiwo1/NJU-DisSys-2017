@@ -418,7 +418,7 @@ func (rf *Raft) log_pad() {
 	log_begin_id := rf.log[0].Index
 	for i := rf.lastApplied + 1; i <= rf.commitIndex; i++ {
 		msg := ApplyMsg{}
-		msg.CommandIndex = i
+		msg.Index = i
 		msg.CommandValid = true
 		msg.Command = rf.log[i - log_begin_id].Command
 		rf.applyCh <- msg
