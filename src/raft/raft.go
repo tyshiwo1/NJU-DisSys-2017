@@ -114,7 +114,7 @@ type AppendEntriesReply struct {
 	Success bool
 	NextTryIndex int
 }
-/*
+
 func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -157,81 +157,6 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 			go rf.log_pad()
 		}
 	}
-}
-*/
-func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
-	/*	Receiver implementation:
-	1. Reply false if term < currentTerm (§5.1)
-	2. Reply false if log doesn’t contain an entry at prevLogIndex
-	whose term matches prevLogTerm (§5.3)
-	3. If an existing entry conflicts with a new one (same index
-	but different terms), delete the existing entry and all that
-	follow it (§5.3)
-	4. Append any new entries not already in the log
-	5. If leaderCommit > commitIndex, set commitIndex =
-		min(leaderCommit, index of last new entry)	*/
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
-	rf.heartbeatCh <- true
-
-	if args.Term > rf.currentTerm {
-		rf.role = FOLLOWER
-		rf.currentTerm = args.Term
-		rf.votedFor = -1
-	}
-	reply.Term = rf.currentTerm
-	reply.NextTryIndex = -1	//默认为-1，代表index--，此处为简化逻辑，除日志不匹配的其他情况都统一--
-	if args.Term < rf.currentTerm {
-		reply.Success = false
-	} else if len(rf.log) <= args.PrevLogIndex || rf.log[args.PrevLogIndex].Term != args.PrevLogTerm {
-		// Reply false if log doesn’t contain an entry at prevLogIndex whose term matches prevLogTerm (§5.3)
-		if len(rf.log) <= args.PrevLogIndex{
-			DPrintf("logsLen(%d) prevLogIndex(%d)",
-				len(rf.log), args.PrevLogIndex)
-		} else {
-			DPrintf("logsLen(%d) prevLogIndex(%d) logsTerm(%d) prevLogTerm(%d)",
-				len(rf.log), args.PrevLogIndex, rf.log[args.PrevLogIndex].Term, args.PrevLogTerm)
-		}
-		if len(rf.log) > args.PrevLogIndex {
-			// 如果日志内容不匹配，找到同Term中最早的Index，直接回退到那个Index
-			term := rf.log[args.PrevLogIndex].Term
-			for reply.NextTryIndex = args.PrevLogIndex - 1;
-				reply.NextTryIndex > 0 && rf.log[reply.NextTryIndex].Term == term; reply.NextTryIndex-- {}
-			reply.NextTryIndex++
-		} else {
-			// 如果日志长度不匹配，则以当前的日志长度为准
-			reply.NextTryIndex = rf.log[len(rf.log)-1].Index + 1
-		}
-		reply.Success = false
-	} else {
-		rf.log(fmt.Sprintf("Log append: rfLogs(%d) entries(%d) preLogIndex(%d)",
-			rf.log, args.Entries, args.PrevLogIndex))
-		for i := 0; i < len(args.Entries); i++ {
-			if i + args.PrevLogIndex + 2 > len(rf.log) {
-				// 如果Entries 长过了 rf.log，那么直接append
-				rf.log = append(rf.log, args.Entries[i])
-			} else if rf.log[i + args.PrevLogIndex + 1].Term != args.Entries[i].Term {
-				rf.log = rf.log[:i + args.PrevLogIndex + 1]
-				rf.log = append(rf.log, args.Entries[i])
-			}
-		}
-		rf.log(fmt.Sprintf("Log append result: rfLogs(%d)", rf.log))
-		if args.LeaderCommit > rf.commitIndex {
-			if args.LeaderCommit > rf.log[len(rf.log)-1].Index {
-				rf.commitIndex = rf.log[len(rf.log)-1].Index
-			} else {
-				rf.commitIndex = args.LeaderCommit
-			}
-			if rf.commitIndex > rf.lastApplied {
-				go rf.log_pad()
-			}
-		}
-		reply.Success = true
-	}
-	DPrintf("2 commitIndex %d lastApplied %d LastIndex %d", rf.commitIndex, rf.lastApplied, rf.log[len(rf.log)-1].Index)
-	rf.log(fmt.Sprintf("reply AppendEntries from %d: %t", args.LeaderId, reply.Success))
-
-	rf.persist()
 }
 
 
